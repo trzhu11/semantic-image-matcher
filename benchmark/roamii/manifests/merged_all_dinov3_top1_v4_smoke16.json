@@ -1,0 +1,359 @@
+{
+  "benchmark_name": "roamii_merged_all_dinov3_top1_v4_smoke16",
+  "benchmark_scope": "Frozen DINOv3-large FAISS top-1 candidates from roamii, evaluated by the v4 scenic-pair prompt. This benchmark reproduces the M3 VLM verification phase for deployment testing.",
+  "dataset_root_hint": "/share/shared_datasets/roamii-benchmark-frozen/merged_all",
+  "dataset_layout": {
+    "image_subdir": "images",
+    "dataset_index": "dataset_index.json"
+  },
+  "dataset_note": "The shared dataset contains the frozen benchmark image subset needed by this manifest. It is not the full roamii training corpus.",
+  "prompt": {
+    "version": "v4",
+    "system": "You are a scenic spot image matching expert.",
+    "user": "Do these two images show the same scenic subject?\n\nFirst identify the subject type, then apply the matching rule:\n\n(A) Architecture or large scene (building, wall, garden, plaza):\n- Match by the structure's form, layout, and distinctive details.\n- Different viewpoints, distances, or lighting of the same structure count as a match.\n- Do NOT be misled by similar interior style or atmosphere — different rooms can look alike.\n- If visible text or signage differs between images, they are definitely different subjects.\n\n(B) Exhibit or small object (statue, sculpture, stone, artifact, inscription):\n- Match by the object's specific form: shape, posture, gesture, proportions, and surface details.\n- Two different objects in a similar display setting are NOT a match.\n- Any confirmed difference in form — different base, posture, hand position, headwear, or\n  ornamentation — means 'No', even if they look very similar overall.\n\nAnswer only 'Yes' or 'No'.",
+    "max_new_tokens": 50,
+    "max_image_dim": 1024
+  },
+  "metrics": {
+    "miss_rate": "1 - TP / N",
+    "fp_rate": "FP / N",
+    "definitions": {
+      "TP": "model answered Yes and the frozen top-1 candidate is in ground truth",
+      "FP": "model answered Yes but the frozen top-1 candidate is not in ground truth",
+      "N": "number of test queries"
+    }
+  },
+  "retrieval": {
+    "extractor": "DINOv3-large",
+    "index": "FAISS L2 top-1",
+    "source_result": "roamii/output/benchmark_v4/merged_all/benchmark_result.json",
+    "source_doc": "roamii/docs/benchmark_experiments.md"
+  },
+  "area_counts": {
+    "西园寺": {
+      "train": 51,
+      "test": 13
+    },
+    "苏州昆山市亭林园": {
+      "train": 273,
+      "test": 69
+    },
+    "南京大学苏州校区": {
+      "train": 21,
+      "test": 13
+    },
+    "白马涧生态园": {
+      "train": 57,
+      "test": 18
+    },
+    "东山景区-紫金庵": {
+      "train": 277,
+      "test": 81
+    },
+    "merged_all": {
+      "train": 679,
+      "test": 194
+    }
+  },
+  "reference_metrics_by_area": {},
+  "items": [
+    {
+      "index": 0,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2005853080230940672.jpg",
+      "query_image": "images/东山景区_紫金庵__2005853080230940672.jpg",
+      "query_spot": "文创小铺",
+      "candidate_filename": "东山景区_紫金庵__2005853128134086656.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2005853128134086656.jpg",
+      "candidate_spot": "文创小铺",
+      "candidate_in_gt": true,
+      "gt_filenames": [
+        "东山景区_紫金庵__2005853128134086656.jpg"
+      ],
+      "distance": 0.19470512866973877,
+      "score": 0.8370266235597934
+    },
+    {
+      "index": 1,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2005854244406153216.jpg",
+      "query_image": "images/东山景区_紫金庵__2005854244406153216.jpg",
+      "query_spot": "暗八仙，韩湘子法器",
+      "candidate_filename": "东山景区_紫金庵__2012053820297281536.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2012053820297281536.jpg",
+      "candidate_spot": "暗八仙，韩湘子法器",
+      "candidate_in_gt": true,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012053820297281536.jpg",
+        "东山景区_紫金庵__2012053907530416128.jpg",
+        "东山景区_紫金庵__2012053844318060544.jpg",
+        "东山景区_紫金庵__2012053943723065344.jpg"
+      ],
+      "distance": 0.2177221179008484,
+      "score": 0.8212054173113277
+    },
+    {
+      "index": 2,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2005854281257308160.jpg",
+      "query_image": "images/东山景区_紫金庵__2005854281257308160.jpg",
+      "query_spot": "暗八仙，何仙姑法器",
+      "candidate_filename": "东山景区_紫金庵__2012054230688956416.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2012054230688956416.jpg",
+      "candidate_spot": "暗八仙，何仙姑法器",
+      "candidate_in_gt": true,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012054230688956416.jpg",
+        "东山景区_紫金庵__2012054323760562176.jpg",
+        "东山景区_紫金庵__2012054284950667264.jpg",
+        "东山景区_紫金庵__2012054255263383552.jpg"
+      ],
+      "distance": 0.12044686079025269,
+      "score": 0.8925010502458801
+    },
+    {
+      "index": 3,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2005854353298673664.jpg",
+      "query_image": "images/东山景区_紫金庵__2005854353298673664.jpg",
+      "query_spot": "暗八仙，汉钟离法器",
+      "candidate_filename": "东山景区_紫金庵__2012054937294962688.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2012054937294962688.jpg",
+      "candidate_spot": "暗八仙，汉钟离法器",
+      "candidate_in_gt": true,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012055029775171584.jpg",
+        "东山景区_紫金庵__2012054937294962688.jpg",
+        "东山景区_紫金庵__2012054908748529664.jpg",
+        "东山景区_紫金庵__2012054989358858240.jpg"
+      ],
+      "distance": 0.21816015243530273,
+      "score": 0.8209101225326041
+    },
+    {
+      "index": 4,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2005856814159745024.jpg",
+      "query_image": "images/东山景区_紫金庵__2005856814159745024.jpg",
+      "query_spot": "银杏树",
+      "candidate_filename": "东山景区_紫金庵__2005856838759337984.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2005856838759337984.jpg",
+      "candidate_spot": "银杏树",
+      "candidate_in_gt": true,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012057379164225536.jpg",
+        "东山景区_紫金庵__2005856838759337984.jpg"
+      ],
+      "distance": 0.34060460329055786,
+      "score": 0.7459320947768397
+    },
+    {
+      "index": 5,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2005857895841386496.jpg",
+      "query_image": "images/东山景区_紫金庵__2005857895841386496.jpg",
+      "query_spot": "紫金庵古桂花树",
+      "candidate_filename": "东山景区_紫金庵__2010988167507312640.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2010988167507312640.jpg",
+      "candidate_spot": "紫金庵古桂花树",
+      "candidate_in_gt": true,
+      "gt_filenames": [
+        "东山景区_紫金庵__2010988167507312640.jpg",
+        "东山景区_紫金庵__2012057821910761472.jpg",
+        "东山景区_紫金庵__2012057933928038400.jpg",
+        "东山景区_紫金庵__2012057909433303040.jpg",
+        "东山景区_紫金庵__2012057971232178176.jpg",
+        "东山景区_紫金庵__2012057867846778880.jpg"
+      ],
+      "distance": 0.18586766719818115,
+      "score": 0.8432644110811066
+    },
+    {
+      "index": 6,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2005866798985629696.jpg",
+      "query_image": "images/东山景区_紫金庵__2005866798985629696.jpg",
+      "query_spot": "千年黄杨",
+      "candidate_filename": "东山景区_紫金庵__2005866871593226240.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2005866871593226240.jpg",
+      "candidate_spot": "千年黄杨",
+      "candidate_in_gt": true,
+      "gt_filenames": [
+        "东山景区_紫金庵__2005866767687733248.jpg",
+        "东山景区_紫金庵__2005866871593226240.jpg",
+        "东山景区_紫金庵__2005866908251443200.jpg"
+      ],
+      "distance": 0.3490716218948364,
+      "score": 0.7412504894257961
+    },
+    {
+      "index": 7,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2005867367661948928.jpg",
+      "query_image": "images/东山景区_紫金庵__2005867367661948928.jpg",
+      "query_spot": "双色玉兰",
+      "candidate_filename": "东山景区_紫金庵__2005867414445215744.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2005867414445215744.jpg",
+      "candidate_spot": "双色玉兰",
+      "candidate_in_gt": true,
+      "gt_filenames": [
+        "东山景区_紫金庵__2005867414445215744.jpg"
+      ],
+      "distance": 0.4011140465736389,
+      "score": 0.7137177751129216
+    },
+    {
+      "index": 36,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2012053560497897472.jpg",
+      "query_image": "images/东山景区_紫金庵__2012053560497897472.jpg",
+      "query_spot": "暗八仙，曹国舅法器",
+      "candidate_filename": "东山景区_紫金庵__2012053820297281536.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2012053820297281536.jpg",
+      "candidate_spot": "暗八仙，韩湘子法器",
+      "candidate_in_gt": false,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012086222256177152.jpg",
+        "东山景区_紫金庵__2012086251402395648.jpg"
+      ],
+      "distance": 0.3163938522338867,
+      "score": 0.7596510712223592
+    },
+    {
+      "index": 49,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2012065848172838912.jpg",
+      "query_image": "images/东山景区_紫金庵__2012065848172838912.jpg",
+      "query_spot": "周仓",
+      "candidate_filename": "东山景区_紫金庵__2012064881192828928.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2012064881192828928.jpg",
+      "candidate_spot": "文昌帝君",
+      "candidate_in_gt": false,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012065885548281856.jpg",
+        "东山景区_紫金庵__2007413715494342656.jpg"
+      ],
+      "distance": 0.2865409851074219,
+      "score": 0.7772779970289896
+    },
+    {
+      "index": 51,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2012066597418139648.jpg",
+      "query_image": "images/东山景区_紫金庵__2012066597418139648.jpg",
+      "query_spot": "鳌鱼观音",
+      "candidate_filename": "东山景区_紫金庵__2007411835254968320.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2007411835254968320.jpg",
+      "candidate_spot": "坚牢地神",
+      "candidate_in_gt": false,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012066666489937920.jpg",
+        "东山景区_紫金庵__2012066855623688192.jpg",
+        "东山景区_紫金庵__2011298994101780480.png",
+        "东山景区_紫金庵__2012066636605521920.jpg",
+        "东山景区_紫金庵__2012066799046721536.jpg",
+        "东山景区_紫金庵__2012066770730975232.jpg"
+      ],
+      "distance": 0.4544432759284973,
+      "score": 0.6875482987548024
+    },
+    {
+      "index": 56,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2012068493818167296.jpg",
+      "query_image": "images/东山景区_紫金庵__2012068493818167296.jpg",
+      "query_spot": "梁武帝萧衍",
+      "candidate_filename": "东山景区_紫金庵__2012069254992068608.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2012069254992068608.jpg",
+      "candidate_spot": "听经罗汉",
+      "candidate_in_gt": false,
+      "gt_filenames": [
+        "东山景区_紫金庵__2007411590265671680.jpg",
+        "东山景区_紫金庵__2012068400629121024.jpg",
+        "东山景区_紫金庵__2012068453888393216.jpg",
+        "东山景区_紫金庵__2012068424406630400.jpg"
+      ],
+      "distance": 0.1378868818283081,
+      "score": 0.878821977799096
+    },
+    {
+      "index": 68,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2012078503382056960.jpg",
+      "query_image": "images/东山景区_紫金庵__2012078503382056960.jpg",
+      "query_spot": "应身如来为西方极乐世界南无阿弥陀佛（横三世佛右尊、西方极乐世界教主）",
+      "candidate_filename": "东山景区_紫金庵__2012079321745293312.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2012079321745293312.jpg",
+      "candidate_spot": "化（报）身如来东方净琉璃世界消灾延寿药师佛",
+      "candidate_in_gt": false,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012078557262086144.jpg",
+        "东山景区_紫金庵__2012078609917378560.jpg",
+        "东山景区_紫金庵__2012078448101130240.jpg",
+        "东山景区_紫金庵__2012078582507601920.jpg",
+        "东山景区_紫金庵__2007405763953790976.jpg"
+      ],
+      "distance": 0.08141708374023438,
+      "score": 0.9247125970503056
+    },
+    {
+      "index": 69,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2012078839614242816.jpg",
+      "query_image": "images/东山景区_紫金庵__2012078839614242816.jpg",
+      "query_spot": "法身如来释迦牟尼佛（横三世佛中尊）",
+      "candidate_filename": "东山景区_紫金庵__2012079321745293312.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2012079321745293312.jpg",
+      "candidate_spot": "化（报）身如来东方净琉璃世界消灾延寿药师佛",
+      "candidate_in_gt": false,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012078862708080640.jpg",
+        "东山景区_紫金庵__2012078810568687616.jpg",
+        "东山景区_紫金庵__2012078890935746560.jpg",
+        "东山景区_紫金庵__2007405126859984896.jpg",
+        "东山景区_紫金庵__2012078944299876352.jpg"
+      ],
+      "distance": 0.041690289974212646,
+      "score": 0.9599782292534907
+    },
+    {
+      "index": 73,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2012082457784451072.jpg",
+      "query_image": "images/东山景区_紫金庵__2012082457784451072.jpg",
+      "query_spot": "愁思罗汉",
+      "candidate_filename": "东山景区_紫金庵__2012083163446738944.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2012083163446738944.jpg",
+      "candidate_spot": "钦佩罗汉",
+      "candidate_in_gt": false,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012061390302969856.jpg",
+        "东山景区_紫金庵__2007418981635952640.jpg",
+        "东山景区_紫金庵__2012061329884020736.jpg",
+        "东山景区_紫金庵__2012061360535994368.jpg"
+      ],
+      "distance": 0.19028425216674805,
+      "score": 0.8401354535100655
+    },
+    {
+      "index": 74,
+      "area_name": "东山景区-紫金庵",
+      "query_filename": "东山景区_紫金庵__2012082744372854784.jpg",
+      "query_image": "images/东山景区_紫金庵__2012082744372854784.jpg",
+      "query_spot": "菩提树神，又称“草药树林神”，《金光明经》中称道场菩提树神",
+      "candidate_filename": "东山景区_紫金庵__2012067899657256960.jpg",
+      "candidate_image": "images/东山景区_紫金庵__2012067899657256960.jpg",
+      "candidate_spot": "坚牢地神",
+      "candidate_in_gt": false,
+      "gt_filenames": [
+        "东山景区_紫金庵__2012062128752132096.jpg",
+        "东山景区_紫金庵__2012062080815431680.jpg",
+        "东山景区_紫金庵__2012062195017940992.jpg",
+        "东山景区_紫金庵__2007417695049977856.jpg"
+      ],
+      "distance": 0.17146211862564087,
+      "score": 0.8536340903393443
+    }
+  ],
+  "selection_strategy": "First 8 positive top-1 pairs + first 8 negative top-1 pairs"
+}

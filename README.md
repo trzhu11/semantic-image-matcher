@@ -1,160 +1,430 @@
-# Semantic Image Matcher
+# Semantic Image Matcher: Int8 Single GPU Deploy
 
-基于 DINOv3 + Qwen3-VL 的语义图像匹配系统，用于景区/博物馆场景的图像定位与匹配。
+这个仓库的 `int8-single-gpu-deploy` 分支是独立于 `/data1/students/zzh/ztr` 的单卡替换部署，目标是：
 
-## 系统架构
+- 用 `Qwen3-VL-8B-Instruct-GGUF` 在一张 `16GB` 卡上提供稳定的 VLM 能力
+- 保持 `ztr` 两个图搜接口的调用方式和返回结构不变
+- 额外提供一个可直接用于日常问答的 `Qwen3` 接口
+- 默认替换线上旧端口：`18080` 和 `10003`
 
-```
-Query Image → M1 (DINOv3 全局检索) → Top-K 候选 → M3 (VLM 语义验证) → 最终匹配结果
-```
+当前默认部署模式：
 
-- **M1 模块**: 使用 DINOv3-ViT-H/16+ 提取全局特征，通过 FAISS 索引进行快速检索
-- **M3 模块**: 使用 Qwen3-VL-8B 进行图像对的语义验证，判断是否为同一地点
+- `18080`: `llama.cpp` 原生 OpenAI 风格后端
+- `10003`: 包装服务，提供 `Qwen3` 问答和两个图搜接口
+- 单卡优先：`Qwen + DINOv3 large` 放同一张卡
+- 如果单卡不稳，再把 DINO 单独挪到另一张卡
 
-## 环境配置
+## 目录结构
 
-### 1. 创建 Conda 环境
-
-```bash
-conda create -n semantic-matcher python=3.10
-conda activate semantic-matcher
-```
-
-### 2. 安装依赖
-
-```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-pip install transformers>=4.45.0
-pip install faiss-gpu  # 或 faiss-cpu
-pip install h5py
-pip install opencv-python
-pip install pillow
-pip install tqdm
-pip install qwen-vl-utils
-```
-
-### 3. 模型下载
-
-#### DINOv3-ViT-H/16+ (M1 模块)
-
-```bash
-# 从 HuggingFace 下载
-# 模型: facebook/dinov2-giant 或自定义路径
-# 默认路径: /share/shared_weights/dinov3/facebook/dinov3-vith16plus-pretrain-lvd1689m
-```
-
-或使用 transformers 自动下载:
-```python
-from transformers import AutoModel, AutoImageProcessor
-model = AutoModel.from_pretrained("facebook/dinov2-giant")
-processor = AutoImageProcessor.from_pretrained("facebook/dinov2-giant")
-```
-
-#### Qwen3-VL-8B (M3 模块)
-
-```bash
-# 从 HuggingFace 下载
-# 模型: Qwen/Qwen2-VL-7B-Instruct 或 Qwen3-VL-8B-Instruct
-# 默认路径: /share/shared_weights/Qwen3-VL-8B-Instruct
-```
-
-## 模型版本说明
-
-| 模块 | 模型 | 特征维度 | 说明 |
-|------|------|----------|------|
-| M1 | DINOv3-ViT-H/16+ | 1536 | 全局图像检索，提取 CLS token 作为全局特征 |
-| M3 | Qwen3-VL-8B-Instruct | - | 多模态语义验证，判断图像对是否为同一地点 |
-
-## 使用方法
-
-### 1. 构建图像数据库
-
-```bash
-python scripts/build_database.py \
-    --image-dir /path/to/your/images \
-    --output-dir /path/to/output/database
-```
-
-### 2. 运行匹配测试
-
-```bash
-python scripts/test_matching.py \
-    --query-dir /path/to/query/images \
-    --db-dir /path/to/database \
-    --output-dir /path/to/results
-```
-
-### 3. Python API 使用
-
-```python
-from core.m1_retrieval import M1GlobalRetrieval
-from core.m3_verifier import LocalM3Verifier
-from pathlib import Path
-
-# 初始化模块
-m1 = M1GlobalRetrieval(device='cuda')
-m3 = LocalM3Verifier(prompt_style='simple')
-
-# 加载数据库
-m1.load_index(Path('/path/to/database'))
-
-# 查询
-query_image = Path('/path/to/query.jpg')
-candidates = m1.query(query_image, top_k=5)
-
-# 验证 Top-1
-if candidates:
-    is_match, response, confidence = m3.verify_pair(
-        str(query_image),
-        str(candidates[0]['path'])
-    )
-    print(f"Match: {is_match}, Response: {response}")
-```
-
-## 项目结构
-
-```
+```text
 semantic-image-matcher/
 ├── README.md
 ├── requirements.txt
-├── core/
-│   ├── __init__.py
-│   ├── m1_retrieval.py      # M1: DINOv3 全局检索
-│   └── m3_verifier.py       # M3: VLM 语义验证
-└── scripts/
-    ├── build_database.py    # 构建图像数据库
-    └── test_matching.py     # 测试匹配效果
+├── benchmark/
+│   └── roamii/
+│       ├── README.md
+│       ├── manifests/
+│       ├── results/
+│       └── run_api_benchmark.py
+├── scripts/
+│   ├── bootstrap_llama_cpp.sh
+│   ├── smoke_test.sh
+│   ├── start_llama_backend.sh
+│   ├── start_replace_stack.sh
+│   └── start_service.sh
+├── src/
+│   └── qwen3_vl_single_gpu/
+│       ├── app.py
+│       ├── config.py
+│       ├── prompts.py
+│       ├── api/
+│       │   └── schemas.py
+│       ├── clients/
+│       │   └── llama_backend.py
+│       ├── models/
+│       │   └── dino_encoder.py
+│       ├── services/
+│       │   ├── chat_proxy.py
+│       │   ├── qwen_verifier.py
+│       │   └── rerank.py
+│       └── utils/
+│           └── image_io.py
+└── tests/
+    ├── test_chat_proxy.py
+    └── test_rerank.py
 ```
 
-## M3 Prompt 风格
+## 代码职责
 
-支持多种 prompt 风格，可根据场景选择：
+`scripts/`
 
-| 风格 | 说明 |
-|------|------|
-| `simple` | 简洁直接版 (推荐首选) |
-| `scenic_guide` | 景区讲解专用版 |
-| `strict` | 严格匹配版 (减少误报) |
-| `chinese` | 中文版 |
-| `detailed` | 详细分析版 |
+- `bootstrap_llama_cpp.sh`: 构建或更新 `llama.cpp`
+- `start_llama_backend.sh`: 启动 `18080` 上的原生 Qwen 后端
+- `start_service.sh`: 启动 `10003` 上的替换包装服务
+- `smoke_test.sh`: 走真实接口做基础联调
 
-```python
-m3 = LocalM3Verifier(prompt_style='strict')
+`src/qwen3_vl_single_gpu/`
+
+- `app.py`: FastAPI 入口，暴露三个接口
+- `config.py`: 统一环境变量和默认配置
+- `prompts.py`: benchmark 对齐的 VLM prompt
+- `clients/llama_backend.py`: 对 `llama-server` 的本地 HTTP 调用
+- `models/dino_encoder.py`: `DINOv3 large` 编码器
+- `services/chat_proxy.py`: `Qwen3` 问答代理，支持远程图片转 `data:` URL
+- `services/qwen_verifier.py`: 双图核验逻辑
+- `services/rerank.py`: Top-1 候选选择与核验流程
+- `utils/image_io.py`: 图片下载、URL 改写、缩放和编码
+
+`benchmark/roamii/`
+
+- `run_api_benchmark.py`: 用真实接口跑完整 benchmark
+- `manifests/`: 冻结候选集
+- `results/`: 输出结果和摘要
+
+## 模型与权重
+
+- Qwen 权重目录：`/share/shared_weights/Qwen3-VL-8B-Instruct-GGUF`
+- DINO 权重目录：`/share/shared_weights/dinov3/facebook/dinov3-vith16plus-pretrain-lvd1689m`
+- Benchmark 数据目录：`/share/shared_datasets/roamii-benchmark-frozen/merged_all`
+
+如果后续需要下载新权重，优先用 `ModelScope`，并统一落到 `/share/shared_weights`。
+
+## 默认端口与替换关系
+
+- 旧 Qwen 服务端口：`18080`
+- 新 Qwen 原生后端端口：`18080`
+- `ztr` 图搜服务端口：`10003`
+- 新替换包装服务端口：`10003`
+
+因此，替换完成后：
+
+- 原来调 `http://127.0.0.1:18080` 的调用方无需改地址
+- 原来调 `http://127.0.0.1:10003/vector/encode` 和 `http://127.0.0.1:10003/vector/rerank` 的调用方无需改地址
+
+## 启动
+
+推荐环境：
+
+```bash
+conda activate /home/test/.conda/envs/semantic_matcher
+cd /data1/students/zzh/semantic-image-matcher
 ```
 
-## 性能参考
+### 一键启动
 
-在南大苏州数据集上的测试结果：
+工程师直接用这一条即可：
 
-| 模型 | 准确率 | M1 时间 | M3 时间 | 总时间 |
-|------|--------|---------|---------|--------|
-| DINOv3-ViT-H/16+ | ~85%+ | ~50ms | ~800ms | ~850ms |
+```bash
+CUDA_DEVICE=2 ./scripts/start_replace_stack.sh
+```
 
-## License
+这条命令会：
 
-MIT License
+- 启动或复用 `18080` 上的 Qwen 后端
+- 等待后端就绪
+- 启动或复用 `10003` 上的包装服务
+- 等待 `/health` 返回成功
 
-## 致谢
+### 1. 构建 `llama.cpp`
 
-- [DINOv2](https://github.com/facebookresearch/dinov2) - Meta AI
-- [Qwen-VL](https://github.com/QwenLM/Qwen-VL) - Alibaba Cloud
+```bash
+./scripts/bootstrap_llama_cpp.sh
+```
+
+### 2. 单卡启动 Qwen 后端
+
+下面命令会把 `Qwen3-VL-8B-Instruct-GGUF` 启到 `18080`：
+
+```bash
+CUDA_DEVICE=2 ./scripts/start_llama_backend.sh
+```
+
+默认行为：
+
+- `CUDA_VISIBLE_DEVICES=<CUDA_DEVICE>`
+- `--split-mode none`
+- `--main-gpu 0`
+- `flash-attn` 开启
+- KV cache 使用 `q8_0`
+- `reasoning-budget=0`
+
+### 3. 单卡启动替换包装服务
+
+下面命令会把三个接口启到 `10003`：
+
+```bash
+CUDA_DEVICE=2 ./scripts/start_service.sh
+```
+
+默认行为：
+
+- 访问本地 `Qwen` 后端 `http://127.0.0.1:18080`
+- `DINO_DEVICE=cuda:0`
+- `QWEN_MAX_NEW_TOKENS=4`
+- `MAX_IMAGE_DIM=768`
+- 服务启动时预加载 `DINO`
+
+### 4. 显存不够时的降级方案
+
+如果某张 `16GB` 卡无法同时承载 `Qwen + DINO large`，保持 Qwen 单卡不变，只把 DINO 挪到另一张卡：
+
+```bash
+CUDA_DEVICE=2 DINO_DEVICE=cuda:1 CUDA_VISIBLE_DEVICES=2,3 ./scripts/start_service.sh
+```
+
+这会让：
+
+- `Qwen` 继续走 `CUDA_VISIBLE_DEVICES` 中的第 `0` 张卡
+- `DINO` 走第 `1` 张卡
+
+## 三个接口
+
+包装服务统一地址：
+
+```text
+http://127.0.0.1:10003
+```
+
+### 1. `POST /v1/chat/completions`
+
+用途：日常问答，兼容 OpenAI 风格请求；支持纯文本，也支持消息里带图片 URL。
+
+示例：
+
+```bash
+curl --noproxy '*' http://127.0.0.1:10003/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "qwen3-vl-8b-instruct-q8_0",
+    "messages": [
+      {
+        "role": "user",
+        "content": "南京有哪些适合一日游的景点？"
+      }
+    ],
+    "temperature": 0.2,
+    "max_tokens": 256
+  }'
+```
+
+带图示例：
+
+```bash
+curl --noproxy '*' http://127.0.0.1:10003/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {"type": "text", "text": "请描述这张图片"},
+          {"type": "image_url", "image_url": {"url": "http://10.168.100.13:9000/demo.jpg"}}
+        ]
+      }
+    ],
+    "max_tokens": 128
+  }'
+```
+
+说明：
+
+- 若消息中包含远程图片 URL，包装层会先下载、缩放，再转成 `data:` URL 发给后端
+- 如果调用方只需要原生后端，也可以直接访问 `http://127.0.0.1:18080/v1/chat/completions`
+
+### 2. `POST /vector/encode`
+
+用途：输入一张图片，返回 `DINOv3 large` 的 `1280` 维向量。调用方式与 `/data1/students/zzh/ztr` 完全一致。
+
+请求：
+
+```json
+{
+  "imageUrl": "https://example.com/query.jpg"
+}
+```
+
+响应：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "vector": [0.123, -0.045, "..."],
+    "dim": 1280,
+    "modelVersion": "dinov3-vith16plus-pretrain-lvd1689m"
+  }
+}
+```
+
+示例：
+
+```bash
+curl --noproxy '*' -X POST http://127.0.0.1:10003/vector/encode \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "imageUrl": "http://10.168.100.13:9000/demo/query.jpg"
+  }'
+```
+
+### 3. `POST /vector/rerank`
+
+用途：输入 query 图和已按 `DINO` 相似度降序排好的候选列表，当前只核验 Top-1，返回是否命中。调用方式与 `/data1/students/zzh/ztr` 完全一致。
+
+请求：
+
+```json
+{
+  "queryImageUrl": "https://example.com/query.jpg",
+  "candidateImageUrls": [
+    "https://example.com/c1.jpg",
+    "https://example.com/c2.jpg",
+    "https://example.com/c3.jpg"
+  ]
+}
+```
+
+命中响应：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "matchedImageUrl": "https://example.com/c1.jpg",
+    "matchedIndex": 0,
+    "checkedCount": 1,
+    "isMatch": true,
+    "strategy": "top1_ordered",
+    "modelVersion": "Qwen3-VL-8B-Instruct"
+  }
+}
+```
+
+未命中响应：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "matchedImageUrl": null,
+    "matchedIndex": null,
+    "checkedCount": 1,
+    "isMatch": false,
+    "strategy": "top1_ordered",
+    "modelVersion": "Qwen3-VL-8B-Instruct"
+  }
+}
+```
+
+示例：
+
+```bash
+curl --noproxy '*' -X POST http://127.0.0.1:10003/vector/rerank \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "queryImageUrl": "http://10.168.100.13:9000/demo/query.jpg",
+    "candidateImageUrls": [
+      "http://10.168.100.13:9000/demo/c1.jpg",
+      "http://10.168.100.13:9000/demo/c2.jpg"
+    ]
+  }'
+```
+
+## 健康检查
+
+- 包装服务：`GET /health`
+- 原生后端：`GET /health`、`GET /v1/models`
+
+示例：
+
+```bash
+curl --noproxy '*' http://127.0.0.1:10003/health
+curl --noproxy '*' http://127.0.0.1:18080/v1/models
+```
+
+## 与 `ztr` 的兼容性
+
+当前兼容范围：
+
+- `/vector/encode` 请求字段一致
+- `/vector/encode` 默认返回字段一致
+- `/vector/rerank` 请求字段一致
+- `/vector/rerank` 默认返回字段一致
+- `400 / 422 / 500` 错误格式一致
+- `candidateImageUrls` 为空时返回 `400`
+
+额外能力：
+
+- `POST /v1/chat/completions`
+- benchmark 可显式带 `?includeTimings=1` 获取 timing 字段
+
+注意：
+
+- `?includeTimings=1` 只用于 benchmark，不会影响默认兼容响应
+
+## 网络与代理
+
+图片下载默认行为：
+
+- `https://1001pqej17305.vicp.fun/` 会改写到 `http://10.168.100.13:9000/`
+- 默认不继承系统 `HTTP_PROXY/HTTPS_PROXY`
+- 本地回环和内网图片地址默认直连
+
+相关环境变量：
+
+- `IMAGE_URL_REWRITE_FROM`
+- `IMAGE_URL_REWRITE_TO`
+- `IMAGE_HTTP_TRUST_ENV`
+- `IMAGE_FORCE_DIRECT_HOSTS`
+
+如果当前 shell 配了代理，手工调本地服务时建议带：
+
+```bash
+curl --noproxy '*'
+```
+
+## Benchmark
+
+评测方式是走真实服务接口，而不是直接调内部 Python 函数。
+
+烟测：
+
+```bash
+python benchmark/roamii/run_api_benchmark.py \
+  --base-url http://127.0.0.1:10003 \
+  --warmup 1 \
+  --manifest benchmark/roamii/manifests/merged_all_dinov3_top1_v4_smoke16.json
+```
+
+完整集：
+
+```bash
+python benchmark/roamii/run_api_benchmark.py \
+  --base-url http://127.0.0.1:10003 \
+  --warmup 1 \
+  --manifest benchmark/roamii/manifests/merged_all_dinov3_top1_v4.json
+```
+
+当前完整 benchmark 结果：
+
+- 结果目录：`benchmark/roamii/results/20260312_175712`
+- `DINO` 平均用时：`185.74 ms`
+- `VLM` 平均用时：`1040.34 ms`
+- 单次完整链路平均用时：`1226.57 ms`
+- `miss_rate`: `16.49%`
+- `fp_rate`: `2.06%`
+
+## 日志
+
+默认日志目录：
+
+```text
+/data1/students/zzh/semantic-image-matcher/logs
+```
+
+主要日志文件：
+
+- `llama_backend.log`
+- `wrapper_service.log`

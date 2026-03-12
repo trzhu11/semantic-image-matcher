@@ -1,21 +1,8 @@
-# Core dependencies
-torch>=2.0.0
-torchvision>=0.15.0
-transformers>=4.45.0
-
-# FAISS for similarity search
-faiss-gpu>=1.7.0  # or faiss-cpu if no GPU
-
-# Data handling
-h5py>=3.0.0
-numpy>=1.20.0
-
-# Image processing
-opencv-python>=4.5.0
-pillow>=9.0.0
-
-# Utilities
-tqdm>=4.60.0
-
-# Qwen-VL specific
-qwen-vl-utils>=0.0.2
+fastapi==0.114.1
+numpy==1.26.4
+pillow==10.4.0
+pydantic==2.9.2
+requests==2.32.3
+torch==2.3.1
+transformers==4.57.6
+uvicorn==0.32.0
