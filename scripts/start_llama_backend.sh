@@ -8,6 +8,7 @@ mkdir -p "${LOG_DIR}"
 HOST="${QWEN_BACKEND_HOST:-0.0.0.0}"
 PORT="${QWEN_BACKEND_PORT:-18080}"
 CUDA_DEVICE="${CUDA_DEVICE:-0}"
+RUN_MODE="${RUN_MODE:-background}"
 LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-${ROOT_DIR}/vendor/llama.cpp}"
 DEFAULT_SERVER_BIN="${LLAMA_CPP_DIR}/llama-server"
 if [[ ! -x "${DEFAULT_SERVER_BIN}" && -x "${LLAMA_CPP_DIR}/build/bin/llama-server" ]]; then
@@ -70,6 +71,10 @@ COMMAND=(
   --reasoning-budget "${REASONING_BUDGET}"
   --no-webui
 )
+
+if [[ "${RUN_MODE}" == "foreground" ]]; then
+  exec "${COMMAND[@]}" >> "${LOG_DIR}/llama_backend.log" 2>&1
+fi
 
 nohup "${COMMAND[@]}" > "${LOG_DIR}/llama_backend.log" 2>&1 &
 

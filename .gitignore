@@ -19,5 +19,6 @@ env/
 *.swo
 logs/
 vendor/
+vendor
 benchmark/roamii/results/
 *.log

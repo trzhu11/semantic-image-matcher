@@ -31,6 +31,8 @@ semantic-image-matcher/
 │   ├── smoke_test.sh
 │   ├── start_llama_backend.sh
 │   ├── start_replace_stack.sh
+│   ├── status_replace_stack.sh
+│   ├── stop_replace_stack.sh
 │   └── start_service.sh
 ├── src/
 │   └── qwen3_vl_single_gpu/
@@ -61,6 +63,9 @@ semantic-image-matcher/
 - `bootstrap_llama_cpp.sh`: 构建或更新 `llama.cpp`
 - `start_llama_backend.sh`: 启动 `18080` 上的原生 Qwen 后端
 - `start_service.sh`: 启动 `10003` 上的替换包装服务
+- `start_replace_stack.sh`: 一键启动整套服务，默认用 `tmux` 常驻托管
+- `status_replace_stack.sh`: 查看 `tmux` 会话、端口和健康状态
+- `stop_replace_stack.sh`: 停掉整套替换服务
 - `smoke_test.sh`: 走真实接口做基础联调
 
 `src/qwen3_vl_single_gpu/`
@@ -124,6 +129,27 @@ CUDA_DEVICE=2 ./scripts/start_replace_stack.sh
 - 等待后端就绪
 - 启动或复用 `10003` 上的包装服务
 - 等待 `/health` 返回成功
+- 默认使用 `tmux` 常驻托管，不会因为当前终端退出而自动停掉
+- 默认使用独立的 `tmux` socket: `semantic_image_matcher`
+
+说明：
+
+- 这台机器已经准备好可用的 `llama.cpp`
+- 如果换到一台新机器，第一次启动前先执行一次 `./scripts/bootstrap_llama_cpp.sh`
+
+### 常用运维命令
+
+查看状态：
+
+```bash
+./scripts/status_replace_stack.sh
+```
+
+停止服务：
+
+```bash
+./scripts/stop_replace_stack.sh
+```
 
 ### 1. 构建 `llama.cpp`
 
@@ -185,6 +211,14 @@ CUDA_DEVICE=2 DINO_DEVICE=cuda:1 CUDA_VISIBLE_DEVICES=2,3 ./scripts/start_servic
 http://127.0.0.1:10003
 ```
 
+当前机器在 `2026-03-13` 可用的局域网地址包含：
+
+```text
+http://10.168.100.13:10003
+```
+
+如果局域网用户访问，优先让他们用这个地址；如果后续网卡地址有变化，用 `hostname -I` 重新确认。
+
 ### 1. `POST /v1/chat/completions`
 
 用途：日常问答，兼容 OpenAI 风格请求；支持纯文本，也支持消息里带图片 URL。
@@ -192,7 +226,7 @@ http://127.0.0.1:10003
 示例：
 
 ```bash
-curl --noproxy '*' http://127.0.0.1:10003/v1/chat/completions \
+curl --noproxy '*' http://10.168.100.13:10003/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
     "model": "qwen3-vl-8b-instruct-q8_0",
@@ -260,7 +294,7 @@ curl --noproxy '*' http://127.0.0.1:10003/v1/chat/completions \
 示例：
 
 ```bash
-curl --noproxy '*' -X POST http://127.0.0.1:10003/vector/encode \
+curl --noproxy '*' -X POST http://10.168.100.13:10003/vector/encode \
   -H 'Content-Type: application/json' \
   -d '{
     "imageUrl": "http://10.168.100.13:9000/demo/query.jpg"
@@ -321,7 +355,7 @@ curl --noproxy '*' -X POST http://127.0.0.1:10003/vector/encode \
 示例：
 
 ```bash
-curl --noproxy '*' -X POST http://127.0.0.1:10003/vector/rerank \
+curl --noproxy '*' -X POST http://10.168.100.13:10003/vector/rerank \
   -H 'Content-Type: application/json' \
   -d '{
     "queryImageUrl": "http://10.168.100.13:9000/demo/query.jpg",
@@ -340,8 +374,8 @@ curl --noproxy '*' -X POST http://127.0.0.1:10003/vector/rerank \
 示例：
 
 ```bash
-curl --noproxy '*' http://127.0.0.1:10003/health
-curl --noproxy '*' http://127.0.0.1:18080/v1/models
+curl --noproxy '*' http://10.168.100.13:10003/health
+curl --noproxy '*' http://10.168.100.13:18080/v1/models
 ```
 
 ## 与 `ztr` 的兼容性
@@ -383,6 +417,18 @@ curl --noproxy '*' http://127.0.0.1:18080/v1/models
 
 ```bash
 curl --noproxy '*'
+```
+
+如果出现你截图里的 `Failed to connect ... port 10003`，这不是代理问题，而是服务没有在监听。先执行：
+
+```bash
+./scripts/status_replace_stack.sh
+```
+
+如果状态异常，重新执行：
+
+```bash
+CUDA_DEVICE=2 ./scripts/start_replace_stack.sh
 ```
 
 ## Benchmark
