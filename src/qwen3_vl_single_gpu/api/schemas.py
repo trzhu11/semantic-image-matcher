@@ -9,6 +9,16 @@ class EncodeRequest(BaseModel):
     imageUrl: str = Field(min_length=1)
 
 
+class AddImageRequest(BaseModel):
+    image_base64: str = Field(min_length=1)
+
+
+class SearchVectorRequest(BaseModel):
+    image_base64: str = Field(min_length=1)
+    index_list: List[int] | None = None
+    k: int = Field(gt=0)
+
+
 class RerankRequest(BaseModel):
     queryImageUrl: str = Field(min_length=1)
     candidateImageUrls: List[str]

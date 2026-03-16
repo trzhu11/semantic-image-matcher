@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "${ROOT_DIR}/scripts/load_env.sh"
+load_local_env
+
 BACKEND_PORT="${QWEN_BACKEND_PORT:-18080}"
 SERVICE_PORT="${SERVICE_PORT:-10003}"
 BACKEND_URL="${QWEN_BACKEND_BASE_URL:-http://127.0.0.1:${BACKEND_PORT}}"
@@ -12,6 +15,8 @@ PROCESS_MANAGER="${PROCESS_MANAGER:-tmux}"
 BACKEND_SESSION="${BACKEND_SESSION:-qwen_int8_backend}"
 SERVICE_SESSION="${SERVICE_SESSION:-qwen_int8_wrapper}"
 TMUX_SOCKET_NAME="${TMUX_SOCKET_NAME:-semantic_image_matcher}"
+BACKEND_CUDA_DEVICE="${BACKEND_CUDA_DEVICE:-${CUDA_DEVICE:-0}}"
+SERVICE_CUDA_DEVICE="${SERVICE_CUDA_DEVICE:-${CUDA_DEVICE:-${BACKEND_CUDA_DEVICE}}}"
 
 wait_for_url() {
   local name="$1"
@@ -46,9 +51,9 @@ if ! curl --noproxy '*' -sf "${BACKEND_URL}/v1/models" >/dev/null 2>&1; then
   if [[ "${PROCESS_MANAGER}" == "tmux" ]] && command -v tmux >/dev/null 2>&1; then
     start_tmux_session \
       "${BACKEND_SESSION}" \
-      "cd '${ROOT_DIR}' && CUDA_DEVICE='${CUDA_DEVICE:-0}' RUN_MODE=foreground ./scripts/start_llama_backend.sh"
+      "cd '${ROOT_DIR}' && BACKEND_CUDA_DEVICE='${BACKEND_CUDA_DEVICE}' RUN_MODE=foreground ./scripts/start_llama_backend.sh"
   else
-    "${ROOT_DIR}/scripts/start_llama_backend.sh"
+    BACKEND_CUDA_DEVICE="${BACKEND_CUDA_DEVICE}" "${ROOT_DIR}/scripts/start_llama_backend.sh"
   fi
 fi
 wait_for_url "Qwen backend" "${BACKEND_URL}/v1/models"
@@ -57,9 +62,9 @@ if ! curl --noproxy '*' -sf "${SERVICE_URL}/health" >/dev/null 2>&1; then
   if [[ "${PROCESS_MANAGER}" == "tmux" ]] && command -v tmux >/dev/null 2>&1; then
     start_tmux_session \
       "${SERVICE_SESSION}" \
-      "cd '${ROOT_DIR}' && CUDA_DEVICE='${CUDA_DEVICE:-0}' RUN_MODE=foreground ./scripts/start_service.sh"
+      "cd '${ROOT_DIR}' && SERVICE_CUDA_DEVICE='${SERVICE_CUDA_DEVICE}' RUN_MODE=foreground ./scripts/start_service.sh"
   else
-    "${ROOT_DIR}/scripts/start_service.sh"
+    SERVICE_CUDA_DEVICE="${SERVICE_CUDA_DEVICE}" "${ROOT_DIR}/scripts/start_service.sh"
   fi
 fi
 wait_for_url "Wrapper service" "${SERVICE_URL}/health"
@@ -67,6 +72,8 @@ wait_for_url "Wrapper service" "${SERVICE_URL}/health"
 echo "Replacement stack is ready."
 echo "Qwen backend: ${BACKEND_URL}"
 echo "Wrapper service: ${SERVICE_URL}"
+echo "backend GPU: ${BACKEND_CUDA_DEVICE}"
+echo "wrapper/DINO GPU: ${SERVICE_CUDA_DEVICE}"
 if [[ "${PROCESS_MANAGER}" == "tmux" ]] && command -v tmux >/dev/null 2>&1; then
   echo "tmux backend session: ${BACKEND_SESSION}"
   echo "tmux wrapper session: ${SERVICE_SESSION}"

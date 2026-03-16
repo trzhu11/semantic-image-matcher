@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "${ROOT_DIR}/scripts/load_env.sh"
+load_local_env
+
 BACKEND_PORT="${QWEN_BACKEND_PORT:-18080}"
 SERVICE_PORT="${SERVICE_PORT:-10003}"
 BACKEND_URL="${QWEN_BACKEND_BASE_URL:-http://127.0.0.1:${BACKEND_PORT}}"

@@ -2,13 +2,15 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "${ROOT_DIR}/scripts/load_env.sh"
+load_local_env
+
 LOG_DIR="${ROOT_DIR}/logs"
 mkdir -p "${LOG_DIR}"
 
 HOST="${QWEN_BACKEND_HOST:-0.0.0.0}"
 PORT="${QWEN_BACKEND_PORT:-18080}"
-CUDA_DEVICE="${CUDA_DEVICE:-0}"
-RUN_MODE="${RUN_MODE:-background}"
+BACKEND_CUDA_DEVICE="${BACKEND_CUDA_DEVICE:-${CUDA_DEVICE:-0}}"
 LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-${ROOT_DIR}/vendor/llama.cpp}"
 DEFAULT_SERVER_BIN="${LLAMA_CPP_DIR}/llama-server"
 if [[ ! -x "${DEFAULT_SERVER_BIN}" && -x "${LLAMA_CPP_DIR}/build/bin/llama-server" ]]; then
@@ -30,6 +32,7 @@ FLASH_ATTN="${QWEN_FLASH_ATTN:-on}"
 CACHE_TYPE_K="${QWEN_CACHE_TYPE_K:-q8_0}"
 CACHE_TYPE_V="${QWEN_CACHE_TYPE_V:-q8_0}"
 REASONING_BUDGET="${QWEN_REASONING_BUDGET:-0}"
+RUN_MODE="${RUN_MODE:-background}"
 
 if [[ ! -x "${LLAMA_SERVER_BIN}" ]]; then
   echo "llama-server not found: ${LLAMA_SERVER_BIN}" >&2
@@ -47,7 +50,7 @@ if [[ ! -f "${MMPROJ_PATH}" ]]; then
   exit 1
 fi
 
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-${CUDA_DEVICE}}"
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-${BACKEND_CUDA_DEVICE}}"
 
 COMMAND=(
   "${LLAMA_SERVER_BIN}"
@@ -73,7 +76,7 @@ COMMAND=(
 )
 
 if [[ "${RUN_MODE}" == "foreground" ]]; then
-  exec "${COMMAND[@]}" >> "${LOG_DIR}/llama_backend.log" 2>&1
+  exec "${COMMAND[@]}"
 fi
 
 nohup "${COMMAND[@]}" > "${LOG_DIR}/llama_backend.log" 2>&1 &

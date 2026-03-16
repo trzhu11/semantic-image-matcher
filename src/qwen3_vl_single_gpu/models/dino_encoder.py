@@ -54,4 +54,8 @@ class DINOEncoder:
                 inputs["pixel_values"] = inputs["pixel_values"].to(self.model_dtype)
             outputs = self.model(**inputs)
             embedding = outputs.last_hidden_state[:, 0, :].detach().float().cpu().numpy()[0]
+        if embedding.shape[0] != self.settings.vector_dim:
+            raise RuntimeError(
+                f"vector dim mismatch, expected={self.settings.vector_dim}, got={embedding.shape[0]}"
+            )
         return embedding.tolist()

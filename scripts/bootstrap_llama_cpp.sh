@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "${ROOT_DIR}/scripts/load_env.sh"
+load_local_env
+
 VENDOR_DIR="${ROOT_DIR}/vendor"
 LLAMA_DIR="${LLAMA_CPP_DIR:-${VENDOR_DIR}/llama.cpp}"
 CMAKE_BIN="${CMAKE_BIN:-${VENDOR_DIR}/cmake/lib/python3.10/site-packages/cmake/data/bin/cmake}"

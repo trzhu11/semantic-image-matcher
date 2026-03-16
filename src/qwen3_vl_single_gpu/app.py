@@ -9,14 +9,18 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from qwen3_vl_single_gpu.api.schemas import EncodeRequest, RerankRequest
+from qwen3_vl_single_gpu.api.schemas import AddImageRequest, EncodeRequest, RerankRequest, SearchVectorRequest
 from qwen3_vl_single_gpu.clients.llama_backend import LlamaBackendClient
 from qwen3_vl_single_gpu.config import Settings, load_settings
 from qwen3_vl_single_gpu.models.dino_encoder import DINOEncoder
 from qwen3_vl_single_gpu.services.chat_proxy import ChatProxyService
 from qwen3_vl_single_gpu.services.qwen_verifier import Qwen3VLGGUFVerifier
 from qwen3_vl_single_gpu.services.rerank import RerankService, SequentialVerificationRunner, TopKSelectionStrategy
+from qwen3_vl_single_gpu.services.vector_store import ElasticsearchVectorStore
 from qwen3_vl_single_gpu.utils.image_io import load_image
+
+
+LEGACY_ERROR_PATHS = frozenset({"/add_image", "/search_vector", "/stats"})
 
 
 class ServiceContainer:
@@ -25,6 +29,7 @@ class ServiceContainer:
         self.backend_client = LlamaBackendClient(settings)
         self.chat_proxy = ChatProxyService(settings, self.backend_client)
         self.dino_encoder = DINOEncoder(settings)
+        self.vector_store = ElasticsearchVectorStore(settings, self.dino_encoder)
         self.qwen_verifier = Qwen3VLGGUFVerifier(settings, self.backend_client)
         if settings.rerank_execution != "sequential":
             raise ValueError(f"unsupported rerank execution mode: {settings.rerank_execution}")
@@ -37,6 +42,7 @@ class ServiceContainer:
     def load(self) -> None:
         self.backend_client.health()
         self.dino_encoder.load()
+        self.vector_store.load()
 
 
 settings = load_settings()
@@ -54,7 +60,10 @@ app = FastAPI(title="Qwen3-VL Single GPU Wrapper", version="0.1.0", lifespan=lif
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(_: Request, exc: RequestValidationError):
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    if request.url.path in LEGACY_ERROR_PATHS:
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
     errors = exc.errors()
     message = "invalid request"
     if errors:
@@ -72,7 +81,13 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError):
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(_: Request, exc: HTTPException):
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if request.url.path in LEGACY_ERROR_PATHS:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -89,8 +104,13 @@ async def health_check():
     return {
         "status": "healthy",
         "backend": backend_health,
+        "vectorBackend": "elasticsearch",
+        "vectorIndex": container.settings.vector_es_index,
+        "vectorEsPing": container.vector_store.ping(),
+        "vectorNextIndex": container.vector_store.next_vector_index,
         "dinoModelVersion": container.dino_encoder.model_version,
         "dinoDevice": container.settings.dino_device,
+        "vectorDim": container.settings.vector_dim,
         "qwenModelVersion": container.qwen_verifier.model_version,
         "rerankTopK": container.settings.rerank_top_k,
         "rerankExecution": container.settings.rerank_execution,
@@ -118,6 +138,52 @@ async def chat_completions(request: Request):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"chat proxy failed: {exc}") from exc
+
+
+@app.post("/add_image")
+async def add_image(request: AddImageRequest):
+    try:
+        faiss_index = await asyncio.to_thread(container.vector_store.add_image, request.image_base64)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid image input: {exc}") from exc
+    except RuntimeError as exc:
+        detail = str(exc)
+        status_code = 503 if detail == "vector db is not ready" else 500
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"failed to persist vector: {exc}") from exc
+
+    return {
+        "status": "success",
+        "faiss_index": faiss_index,
+    }
+
+
+@app.post("/search_vector")
+async def search_vector(request: SearchVectorRequest):
+    try:
+        indices = await asyncio.to_thread(
+            container.vector_store.search,
+            request.image_base64,
+            request.k,
+            request.index_list,
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        if detail == "k must be > 0":
+            raise HTTPException(status_code=400, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=f"invalid image input: {exc}") from exc
+    except RuntimeError as exc:
+        detail = str(exc)
+        status_code = 503 if detail == "vector db is not ready" else 500
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"search failed: {exc}") from exc
+
+    return {
+        "status": "success",
+        "index": indices,
+    }
 
 
 @app.post("/vector/encode")
@@ -151,6 +217,16 @@ async def vector_encode(
         "message": "success",
         "data": data,
     }
+
+
+@app.get("/stats")
+async def stats():
+    try:
+        return await asyncio.to_thread(container.vector_store.stats)
+    except RuntimeError as exc:
+        detail = str(exc)
+        status_code = 503 if detail == "vector db is not ready" else 500
+        raise HTTPException(status_code=status_code, detail=detail) from exc
 
 
 @app.post("/vector/rerank")
